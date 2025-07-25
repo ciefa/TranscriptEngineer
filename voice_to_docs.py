@@ -10,6 +10,7 @@ import time
 import tempfile
 import wave
 import threading
+import contextlib
 
 import pyaudio
 import whisper
@@ -17,6 +18,7 @@ import click
 from colorama import init, Fore, Style
 from anthropic import Anthropic
 from dotenv import load_dotenv
+from github import Github
 
 # Load environment variables
 load_dotenv()
@@ -24,13 +26,39 @@ load_dotenv()
 # Initialize colorama
 init()
 
+@contextlib.contextmanager
+def suppress_stderr():
+    """Suppress stderr output temporarily (for ALSA/JACK warnings)"""
+    with open(os.devnull, "w") as devnull:
+        old_stderr = sys.stderr
+        sys.stderr = devnull
+        try:
+            yield
+        finally:
+            sys.stderr = old_stderr
+
 class VoiceToDocs:
-    def __init__(self, api_key=None, audio_device=None):
+    def __init__(self, api_key=None, audio_device=None, mode="normal", github_token=None, github_repo=None):
         self.api_key = api_key or os.getenv('ANTHROPIC_API_KEY')
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable not set")
         
         self.client = Anthropic(api_key=self.api_key)
+        self.mode = mode
+        
+        # GitHub integration setup
+        self.github_token = github_token or os.getenv('GITHUB_TOKEN')
+        self.github_repo = github_repo or os.getenv('GITHUB_REPO')
+        self.github_client = None
+        self.repo = None
+        
+        if self.github_token and self.github_repo:
+            try:
+                self.github_client = Github(self.github_token)
+                self.repo = self.github_client.get_repo(self.github_repo)
+                print(f"{Fore.GREEN}✓ GitHub integration enabled for {self.github_repo}{Style.RESET_ALL}")
+            except Exception as e:
+                print(f"{Fore.YELLOW}⚠ GitHub integration failed: {e}{Style.RESET_ALL}")
         
         # Load Whisper model
         print(f"{Fore.YELLOW}Loading Whisper model...{Style.RESET_ALL}")
@@ -46,42 +74,30 @@ class VoiceToDocs:
         # Configure audio device
         self.input_device = self._configure_audio_device(audio_device)
         
-        # Load system prompt
-        custom_prompt = os.getenv('SYSTEM_PROMPT')
-        if custom_prompt:
-            self.system_prompt = custom_prompt
-        else:
-            self.system_prompt = """You are an expert software engineer who helps convert casual speech into clear, actionable engineering requirements.
-
-Your task is to take my spoken transcript and transform it into:
-- Clear bug reports with steps to reproduce
-- Structured feature requirements 
-- Technical specifications
-- Implementation tasks
-- Code review feedback
-
-Focus on making the speech more precise, organized, and actionable for engineering work. Preserve the technical intent but make it more structured and professional."""
+        # Load system prompt based on mode
+        self.system_prompt = self._get_system_prompt()
 
     @staticmethod
     def list_audio_devices():
         """List all available audio input devices"""
-        audio = pyaudio.PyAudio()
         devices = []
         
-        try:
-            for i in range(audio.get_device_count()):
-                device_info = audio.get_device_info_by_index(i)
-                if device_info['maxInputChannels'] > 0:  # Only input devices
-                    devices.append({
-                        'index': i,
-                        'name': device_info['name'],
-                        'channels': device_info['maxInputChannels'],
-                        'sample_rate': int(device_info['defaultSampleRate'])
-                    })
-        except Exception as e:
-            print(f"{Fore.RED}Error listing audio devices: {e}{Style.RESET_ALL}")
-        finally:
-            audio.terminate()
+        with suppress_stderr():
+            audio = pyaudio.PyAudio()
+            try:
+                for i in range(audio.get_device_count()):
+                    device_info = audio.get_device_info_by_index(i)
+                    if device_info['maxInputChannels'] > 0:  # Only input devices
+                        devices.append({
+                            'index': i,
+                            'name': device_info['name'],
+                            'channels': device_info['maxInputChannels'],
+                            'sample_rate': int(device_info['defaultSampleRate'])
+                        })
+            except Exception as e:
+                print(f"{Fore.RED}Error listing audio devices: {e}{Style.RESET_ALL}")
+            finally:
+                audio.terminate()
         
         return devices
 
@@ -105,19 +121,20 @@ Focus on making the speech more precise, organized, and actionable for engineeri
 
     def _validate_audio_device(self, device_index):
         """Validate that the specified device exists and supports input"""
-        audio = pyaudio.PyAudio()
-        try:
-            device_info = audio.get_device_info_by_index(device_index)
-            if device_info['maxInputChannels'] == 0:
-                raise ValueError(f"Device {device_index} doesn't support audio input")
-            
-            print(f"{Fore.GREEN}✓ Using audio device {device_index}: {device_info['name']}{Style.RESET_ALL}")
-            return device_index
-            
-        except (OSError, ValueError) as e:
-            raise ValueError(f"Invalid audio device {device_index}: {e}")
-        finally:
-            audio.terminate()
+        with suppress_stderr():
+            audio = pyaudio.PyAudio()
+            try:
+                device_info = audio.get_device_info_by_index(device_index)
+                if device_info['maxInputChannels'] == 0:
+                    raise ValueError(f"Device {device_index} doesn't support audio input")
+                
+                print(f"{Fore.GREEN}✓ Using audio device {device_index}: {device_info['name']}{Style.RESET_ALL}")
+                return device_index
+                
+            except (OSError, ValueError) as e:
+                raise ValueError(f"Invalid audio device {device_index}: {e}")
+            finally:
+                audio.terminate()
 
     def _auto_detect_audio_device(self):
         """Auto-detect the best available audio input device"""
@@ -138,11 +155,56 @@ Focus on making the speech more precise, organized, and actionable for engineeri
         print(f"{Fore.YELLOW}Using default audio device {default_device['index']}: {default_device['name']}{Style.RESET_ALL}")
         return default_device['index']
 
+    def _get_system_prompt(self):
+        """Get system prompt based on mode"""
+        # Check for custom prompt first
+        custom_prompt = os.getenv('SYSTEM_PROMPT')
+        if custom_prompt:
+            return custom_prompt
+        
+        if self.mode == "agile-pm":
+            return """You are an expert Agile Product Manager who creates comprehensive GitHub issues from casual speech.
+
+Your task is to take spoken descriptions and transform them into professionally formatted GitHub issues with:
+
+**User Story Format:**
+- As a [user type]
+- I want [functionality] 
+- So that [benefit/value]
+
+**Required Sections:**
+1. **User Story** - Clear user-focused narrative
+2. **Acceptance Criteria** - Specific, testable requirements (use checkboxes)
+3. **Technical Requirements** - Implementation details, standards, tools
+4. **Implementation Checklist** - Step-by-step tasks (use checkboxes)
+5. **Dependencies** - What's needed before starting
+6. **Effort Estimate** - Size (XS/S/M/L/XL) and time estimate
+
+**Formatting Guidelines:**
+- Use GitHub markdown with headers (##), checkboxes (- [ ]), code blocks
+- Include specific examples and code snippets when relevant
+- Make acceptance criteria measurable and testable
+- Break down complex features into clear implementation steps
+- Add labels suggestions like `enhancement`, `bug`, `accessibility`, etc.
+
+Focus on creating issues that are immediately actionable for developers while maintaining product management best practices."""
+
+        else:  # normal mode
+            return """You are an expert software engineer who helps convert casual speech into clear, actionable engineering requirements.
+
+Your task is to take my spoken transcript and transform it into:
+- Clear bug reports with steps to reproduce
+- Structured feature requirements 
+- Technical specifications
+- Implementation tasks
+- Code review feedback
+
+Focus on making the speech more precise, organized, and actionable for engineering work. Preserve the technical intent but make it more structured and professional."""
+
     def record_audio(self):
         """Record audio until user presses Enter"""
         print(f"{Fore.YELLOW}🎤 Recording started...{Style.RESET_ALL}")
         print(f"{Fore.CYAN}Press ENTER to stop recording{Style.RESET_ALL}")
-        print(f"{Fore.MAGENTA}(Ignore ALSA warnings below - they're normal on Linux){Style.RESET_ALL}")
         
         frames = []
         recording = True
@@ -158,15 +220,16 @@ Focus on making the speech more precise, organized, and actionable for engineeri
         stop_thread.start()
         
         # Initialize audio
-        audio = pyaudio.PyAudio()
-        stream = audio.open(
-            format=self.audio_format,
-            channels=self.channels,
-            rate=self.sample_rate,
-            input=True,
-            input_device_index=self.input_device,
-            frames_per_buffer=self.chunk_size
-        )
+        with suppress_stderr():
+            audio = pyaudio.PyAudio()
+            stream = audio.open(
+                format=self.audio_format,
+                channels=self.channels,
+                rate=self.sample_rate,
+                input=True,
+                input_device_index=self.input_device,
+                frames_per_buffer=self.chunk_size
+            )
         
         print(f"{Fore.GREEN}🔴 Recording... Press ENTER to stop{Style.RESET_ALL}")
         
@@ -253,6 +316,58 @@ Focus on making the speech more precise, organized, and actionable for engineeri
         except Exception as e:
             raise Exception(f"Error calling Claude API: {e}")
 
+    def create_github_issue(self, title, body, labels=None):
+        """Create a GitHub issue from the processed requirements"""
+        if not self.repo:
+            print(f"{Fore.YELLOW}⚠ GitHub integration not configured{Style.RESET_ALL}")
+            return None
+        
+        try:
+            # Create the issue
+            issue = self.repo.create_issue(
+                title=title,
+                body=body,
+                labels=labels or []
+            )
+            
+            print(f"{Fore.GREEN}✓ Created GitHub issue: {issue.html_url}{Style.RESET_ALL}")
+            return issue
+            
+        except Exception as e:
+            print(f"{Fore.RED}❌ Failed to create GitHub issue: {e}{Style.RESET_ALL}")
+            return None
+
+    def extract_title_from_requirements(self, requirements):
+        """Extract a suitable title from the processed requirements"""
+        lines = requirements.split('\n')
+        
+        # Look for common patterns in the first few lines
+        for line in lines[:10]:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Remove markdown formatting
+            clean_line = line.replace('#', '').replace('*', '').replace('`', '').strip()
+            
+            # Skip if it's a section header we don't want
+            if any(skip in clean_line.lower() for skip in ['user story', 'acceptance criteria', 'technical requirements']):
+                continue
+            
+            # If it looks like a good title (reasonable length, not too technical)
+            if 10 <= len(clean_line) <= 100 and not clean_line.startswith('As a'):
+                return clean_line
+        
+        # Fallback: try to extract from user story
+        for line in lines:
+            if 'I want' in line:
+                # Extract the "I want" part
+                want_part = line.split('I want')[1].split('So that')[0].strip()
+                return f"Implement: {want_part}"
+        
+        # Last resort
+        return "New requirement from voice input"
+
     def run_session(self):
         """Run a complete recording and processing session"""
         try:
@@ -274,8 +389,18 @@ Focus on making the speech more precise, organized, and actionable for engineeri
             processed = self.process_with_claude(transcript)
             
             # Display processed result
-            print(f"\n{Fore.CYAN}🔧 Engineering Requirements:{Style.RESET_ALL}")
+            mode_label = "Agile PM Issue" if self.mode == "agile-pm" else "Engineering Requirements"
+            print(f"\n{Fore.CYAN}🔧 {mode_label}:{Style.RESET_ALL}")
             print(f"{Fore.WHITE}{processed}{Style.RESET_ALL}")
+            
+            # Ask about GitHub issue creation
+            if self.repo and self.mode == "agile-pm":
+                print(f"\n{Fore.YELLOW}Create GitHub issue? (y/n):{Style.RESET_ALL}")
+                create_issue = input().strip().lower()
+                
+                if create_issue in ['y', 'yes']:
+                    title = self.extract_title_from_requirements(processed)
+                    self.create_github_issue(title, processed, ['enhancement'])
             
             return transcript, processed
             
@@ -287,7 +412,13 @@ Focus on making the speech more precise, organized, and actionable for engineeri
 @click.option('--api-key', '-k', help='Anthropic API key (or set ANTHROPIC_API_KEY env var)')
 @click.option('--device', '-d', type=int, help='Audio input device index (use --list-devices to see options)')
 @click.option('--list-devices', is_flag=True, help='List available audio input devices and exit')
-def main(api_key, device, list_devices):
+@click.option('--mode', '-m', 
+              type=click.Choice(['normal', 'agile-pm']), 
+              default='normal',
+              help='Processing mode: normal (default) or agile-pm for GitHub issues')
+@click.option('--github-token', '-gt', help='GitHub personal access token (or set GITHUB_TOKEN env var)')
+@click.option('--github-repo', '-gr', help='GitHub repository in format owner/repo (or set GITHUB_REPO env var)')
+def main(api_key, device, list_devices, mode, github_token, github_repo):
     """Voice to Engineering Requirements - Record, transcribe, and convert speech to actionable engineering tasks"""
     
     # Handle --list-devices flag
@@ -307,11 +438,17 @@ def main(api_key, device, list_devices):
         print(f"{Fore.YELLOW}   or: export AUDIO_DEVICE=<index>{Style.RESET_ALL}")
         return
     
-    print(f"{Fore.GREEN}🚀 Voice to Docs Starting...{Style.RESET_ALL}")
-    print(f"{Fore.YELLOW}Note: ALSA audio warnings are normal on Linux and don't affect functionality{Style.RESET_ALL}")
+    print(f"{Fore.GREEN}🚀 Voice to Engineering Requirements Starting...{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}Mode: {mode.upper()}{' (GitHub Issues)' if mode == 'agile-pm' else ''}{Style.RESET_ALL}")
     
     try:
-        voice_to_docs = VoiceToDocs(api_key, device)
+        voice_to_docs = VoiceToDocs(
+            api_key=api_key, 
+            audio_device=device,
+            mode=mode,
+            github_token=github_token,
+            github_repo=github_repo
+        )
         
         while True:
             print(f"\n{Fore.YELLOW}Press Enter to start recording (or 'q' to quit):{Style.RESET_ALL}")

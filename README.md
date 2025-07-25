@@ -1,6 +1,6 @@
 # Voice to Engineering Requirements
 
-A terminal application that records your voice, transcribes it with Whisper, and processes it through Claude AI to transform casual speech into clear, actionable engineering requirements.
+A terminal application that records your voice, transcribes it with Whisper, and processes it through Claude AI to transform casual speech into clear, actionable engineering requirements. Now with **multiple modes** and **GitHub integration**!
 
 ## Features
 
@@ -11,6 +11,9 @@ A terminal application that records your voice, transcribes it with Whisper, and
 - 🎨 Colored terminal output for better UX
 - 🔁 Interactive session mode
 - 🐛 Perfect for describing bugs, features, or technical tasks verbally
+- 🚀 **NEW: Multiple processing modes** (Normal + Agile Product Manager)
+- 📋 **NEW: GitHub integration** - automatically create issues from speech
+- 🏷️ **NEW: Professional issue formatting** with user stories, acceptance criteria, and checklists
 
 ## Setup
 
@@ -56,11 +59,44 @@ python voice_to_docs.py
 - View your original transcript and the structured engineering requirements
 - Type 'q' to quit
 
+## Modes
+
+### Normal Mode (Default)
+Converts speech into structured engineering requirements, bug reports, and technical specifications.
+
+### Agile Product Manager Mode
+Creates comprehensive GitHub issues with:
+- **User Stories** in "As a... I want... So that..." format
+- **Acceptance Criteria** with testable requirements
+- **Technical Requirements** and implementation details
+- **Implementation Checklists** with step-by-step tasks
+- **Dependencies** and effort estimates
+- **Professional formatting** ready for development teams
+
+## GitHub Integration
+
+When using Agile PM mode with GitHub configured, you can automatically create issues:
+
+1. **Setup GitHub integration:**
+   ```bash
+   export GITHUB_TOKEN=your-personal-access-token
+   export GITHUB_REPO=username/repository-name
+   ```
+
+2. **Record your feature/bug description**
+
+3. **Choose to create GitHub issue** when prompted
+
+4. **Issue appears in your repository** with professional formatting!
+
 ## Options
 
 - `--api-key`, `-k`: Provide API key directly instead of using environment variable
 - `--device`, `-d`: Specify audio input device index (use `--list-devices` to see options)
 - `--list-devices`: List all available audio input devices and exit
+- `--mode`, `-m`: Processing mode (`normal` or `agile-pm`)
+- `--github-token`, `-gt`: GitHub personal access token
+- `--github-repo`, `-gr`: GitHub repository in format `owner/repo`
 
 ## Audio Device Configuration
 
@@ -84,11 +120,27 @@ python voice_to_docs.py
 
 The auto-detection prioritizes USB and external microphones (HyperX, Blue, Rode, Shure) over built-in devices for better audio quality.
 
-## Example
+## Example Usage
 
 ```bash
+# Basic usage (normal mode)
+./run.sh
+
+# Agile Product Manager mode for GitHub issues
+./run.sh --mode agile-pm
+
+# With GitHub integration
+./run.sh --mode agile-pm --github-repo username/my-project
+
+# List available audio devices  
+./run.sh --list-devices
+
+# Use specific audio device
+./run.sh --device 2
+
+# Traditional python execution
 source venv/bin/activate
-python voice_to_docs.py
+python voice_to_docs.py --mode agile-pm --github-repo username/repo
 ```
 
 ## Testing
@@ -108,3 +160,4 @@ The tests use mocking to verify core logic without requiring actual hardware or 
 - Microphone access
 - Internet connection (for Claude AI only - Whisper transcription works offline)
 - Anthropic API key
+- GitHub personal access token (optional, for issue creation)
