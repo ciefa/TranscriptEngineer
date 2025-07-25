@@ -4,18 +4,18 @@ A terminal application that records your voice, transcribes it with Whisper, and
 
 ## Features
 
-- 🎤 Record audio from your microphone with flexible controls
-- ⌨️ Simple recording: Press Enter to start, Enter again to stop
-- 🔄 Transcribe speech to text using OpenAI Whisper (offline)
-- 🤖 Convert casual speech into structured engineering requirements with Claude AI
-- 🎨 Colored terminal output for better UX
-- 🔁 Interactive session mode
-- 🐛 Perfect for describing bugs, features, or technical tasks verbally
-- 🚀 **NEW: Multiple processing modes** (Normal + Agile Product Manager)
-- 📋 **NEW: GitHub integration** - automatically create issues from speech
-- 🏷️ **NEW: Professional issue formatting** with user stories, acceptance criteria, and checklists
-- ⚡ **NEW: Interactive mode switching** - press 'a' for Agile-PM, 'n' for Normal
-- 🎯 **NEW: Smart GitHub detection** - just say "make a GitHub issue" in your speech!
+- Record audio from your microphone with flexible controls
+- Simple recording: Press Enter to start, Enter again to stop
+- Transcribe speech to text using OpenAI Whisper (offline)
+- Convert casual speech into structured engineering requirements with Claude AI
+- Colored terminal output for better UX
+- Interactive session mode
+- Perfect for describing bugs, features, or technical tasks verbally
+- **Multiple processing modes** (Normal + Agile Product Manager)
+- **GitHub integration** - automatically create issues from speech
+- **Professional issue formatting** with user stories, acceptance criteria, and checklists
+- **Interactive mode switching** - press 'a' for Agile-PM, 'n' for Normal
+- **Smart GitHub detection** - just say "make a GitHub issue" in your speech!
 
 ## Setup
 
@@ -72,6 +72,8 @@ The app automatically detects when you want a GitHub issue created:
 - "I found a bug in the login system, **make a GitHub issue** for it"
 - "We need dark mode support, **create an issue** for this"
 - "The API is slow, **put this in GitHub** as a performance issue"
+
+**See it in action!** Check out this [sample GitHub issue](https://github.com/ciefa/TranscriptEngineer/issues/1) created entirely from voice input using Agile-PM mode - complete with user story, acceptance criteria, technical requirements, and implementation checklist!
 
 ## Modes
 
