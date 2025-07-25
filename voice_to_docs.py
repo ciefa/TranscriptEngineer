@@ -368,6 +368,18 @@ Focus on making the speech more precise, organized, and actionable for engineeri
         # Last resort
         return "New requirement from voice input"
 
+    def should_create_github_issue(self, transcript):
+        """Check if transcript contains keywords indicating user wants a GitHub issue"""
+        github_keywords = [
+            "make a github issue", "create a github issue", "create an issue",
+            "make an issue", "github issue for", "create issue for",
+            "add to github", "put this in github", "make this a ticket",
+            "create a ticket", "file an issue", "open an issue"
+        ]
+        
+        transcript_lower = transcript.lower()
+        return any(keyword in transcript_lower for keyword in github_keywords)
+
     def run_session(self):
         """Run a complete recording and processing session"""
         try:
@@ -385,6 +397,16 @@ Focus on making the speech more precise, organized, and actionable for engineeri
             print(f"\n{Fore.MAGENTA}📝 Original Transcript:{Style.RESET_ALL}")
             print(f"{Fore.WHITE}{transcript}{Style.RESET_ALL}")
             
+            # Auto-detect if user wants GitHub issue
+            auto_create_issue = False
+            if self.repo and self.should_create_github_issue(transcript):
+                print(f"{Fore.GREEN}🎯 Detected GitHub issue request in speech!{Style.RESET_ALL}")
+                # Temporarily switch to agile-pm mode for this session
+                original_mode = self.mode
+                self.mode = "agile-pm"
+                self.system_prompt = self._get_system_prompt()
+                auto_create_issue = True
+            
             # Process with Claude
             processed = self.process_with_claude(transcript)
             
@@ -393,14 +415,23 @@ Focus on making the speech more precise, organized, and actionable for engineeri
             print(f"\n{Fore.CYAN}🔧 {mode_label}:{Style.RESET_ALL}")
             print(f"{Fore.WHITE}{processed}{Style.RESET_ALL}")
             
-            # Ask about GitHub issue creation
-            if self.repo and self.mode == "agile-pm":
-                print(f"\n{Fore.YELLOW}Create GitHub issue? (y/n):{Style.RESET_ALL}")
-                create_issue = input().strip().lower()
-                
-                if create_issue in ['y', 'yes']:
+            # Handle GitHub issue creation
+            if self.repo and (self.mode == "agile-pm" or auto_create_issue):
+                if auto_create_issue:
+                    # Auto-create since user requested it in speech
                     title = self.extract_title_from_requirements(processed)
                     self.create_github_issue(title, processed, ['enhancement'])
+                    # Restore original mode
+                    self.mode = original_mode
+                    self.system_prompt = self._get_system_prompt()
+                else:
+                    # Ask user if they want to create issue
+                    print(f"\n{Fore.YELLOW}Create GitHub issue? (y/n):{Style.RESET_ALL}")
+                    create_issue = input().strip().lower()
+                    
+                    if create_issue in ['y', 'yes']:
+                        title = self.extract_title_from_requirements(processed)
+                        self.create_github_issue(title, processed, ['enhancement'])
             
             return transcript, processed
             
@@ -451,14 +482,34 @@ def main(api_key, device, list_devices, mode, github_token, github_repo):
         )
         
         while True:
-            print(f"\n{Fore.YELLOW}Press Enter to start recording (or 'q' to quit):{Style.RESET_ALL}")
+            # Show current mode and available commands
+            mode_display = f"{Fore.GREEN}AGILE-PM{Style.RESET_ALL}" if voice_to_docs.mode == "agile-pm" else f"{Fore.BLUE}NORMAL{Style.RESET_ALL}"
+            github_status = f"({Fore.GREEN}GitHub: ON{Style.RESET_ALL})" if voice_to_docs.repo else f"({Fore.YELLOW}GitHub: OFF{Style.RESET_ALL})"
+            
+            print(f"\n{Fore.CYAN}Current Mode: {mode_display} {github_status}{Style.RESET_ALL}")
+            print(f"{Fore.YELLOW}Commands: [Enter] Record | [a] Agile-PM mode | [n] Normal mode | [q] Quit{Style.RESET_ALL}")
+            
             user_input = input().strip().lower()
             
             if user_input == 'q':
                 print(f"{Fore.GREEN}👋 Goodbye!{Style.RESET_ALL}")
                 break
-            
-            voice_to_docs.run_session()
+            elif user_input == 'a':
+                voice_to_docs.mode = "agile-pm"
+                voice_to_docs.system_prompt = voice_to_docs._get_system_prompt()
+                print(f"{Fore.GREEN}✓ Switched to Agile Product Manager mode{Style.RESET_ALL}")
+                continue
+            elif user_input == 'n':
+                voice_to_docs.mode = "normal"
+                voice_to_docs.system_prompt = voice_to_docs._get_system_prompt()
+                print(f"{Fore.BLUE}✓ Switched to Normal mode{Style.RESET_ALL}")
+                continue
+            elif user_input == '':
+                # Empty input means Enter was pressed - start recording
+                voice_to_docs.run_session()
+            else:
+                print(f"{Fore.RED}Unknown command: {user_input}{Style.RESET_ALL}")
+                continue
             
     except ValueError as e:
         print(f"{Fore.RED}❌ Configuration Error: {e}{Style.RESET_ALL}")

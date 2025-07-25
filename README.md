@@ -14,6 +14,8 @@ A terminal application that records your voice, transcribes it with Whisper, and
 - 🚀 **NEW: Multiple processing modes** (Normal + Agile Product Manager)
 - 📋 **NEW: GitHub integration** - automatically create issues from speech
 - 🏷️ **NEW: Professional issue formatting** with user stories, acceptance criteria, and checklists
+- ⚡ **NEW: Interactive mode switching** - press 'a' for Agile-PM, 'n' for Normal
+- 🎯 **NEW: Smart GitHub detection** - just say "make a GitHub issue" in your speech!
 
 ## Setup
 
@@ -53,11 +55,23 @@ python voice_to_docs.py
 
 ## Usage
 
-- Press Enter to start recording
+### Interactive Controls
+- **[Enter]** - Start recording
+- **[a]** - Switch to Agile Product Manager mode
+- **[n]** - Switch to Normal mode  
+- **[q]** - Quit
+
+### Recording Flow
 - Describe your bug, feature request, or technical task naturally
 - Press Enter again to stop recording
-- View your original transcript and the structured engineering requirements
-- Type 'q' to quit
+- View your original transcript and the structured requirements
+- For GitHub issues, just say "**make a GitHub issue**" or "**create an issue**" in your speech!
+
+### Smart GitHub Integration
+The app automatically detects when you want a GitHub issue created:
+- "I found a bug in the login system, **make a GitHub issue** for it"
+- "We need dark mode support, **create an issue** for this"
+- "The API is slow, **put this in GitHub** as a performance issue"
 
 ## Modes
 
