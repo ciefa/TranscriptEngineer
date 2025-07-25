@@ -1,15 +1,16 @@
-# Voice to Docs
+# Voice to Engineering Requirements
 
-A terminal application that records your voice, transcribes it with Whisper, and processes it through Claude AI to transform casual speech into professional engineering documentation.
+A terminal application that records your voice, transcribes it with Whisper, and processes it through Claude AI to transform casual speech into clear, actionable engineering requirements.
 
 ## Features
 
 - 🎤 Record audio from your microphone with flexible controls
 - ⌨️ Simple recording: Press Enter to start, Enter again to stop
 - 🔄 Transcribe speech to text using OpenAI Whisper (offline)
-- 🤖 Process transcripts with Claude AI using an engineering-focused prompt
+- 🤖 Convert casual speech into structured engineering requirements with Claude AI
 - 🎨 Colored terminal output for better UX
 - 🔁 Interactive session mode
+- 🐛 Perfect for describing bugs, features, or technical tasks verbally
 
 ## Setup
 
@@ -50,9 +51,9 @@ python voice_to_docs.py
 ## Usage
 
 - Press Enter to start recording
-- Speak as long as you want  
+- Describe your bug, feature request, or technical task naturally
 - Press Enter again to stop recording
-- View your original transcript and the AI-processed engineering documentation
+- View your original transcript and the structured engineering requirements
 - Type 'q' to quit
 
 ## Options

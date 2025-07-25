@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Voice to Docs - Transform speech into professional engineering documentation
-Record voice → Transcribe with Whisper → Process with Claude AI
+Voice to Engineering Requirements - Transform speech into actionable engineering tasks
+Record voice → Transcribe with Whisper → Convert to structured requirements with Claude AI
 """
 
 import os
@@ -51,9 +51,16 @@ class VoiceToDocs:
         if custom_prompt:
             self.system_prompt = custom_prompt
         else:
-            self.system_prompt = """You are an expert software engineer who writes clean, production-ready code with deep knowledge of modern web technologies and blockchain development.
+            self.system_prompt = """You are an expert software engineer who helps convert casual speech into clear, actionable engineering requirements.
 
-Your task is to take my spoken transcript and transform it into clear, structured engineering requirements, code comments, or technical documentation that follows best practices for React, Node.js, TypeScript, and Web3 development."""
+Your task is to take my spoken transcript and transform it into:
+- Clear bug reports with steps to reproduce
+- Structured feature requirements 
+- Technical specifications
+- Implementation tasks
+- Code review feedback
+
+Focus on making the speech more precise, organized, and actionable for engineering work. Preserve the technical intent but make it more structured and professional."""
 
     @staticmethod
     def list_audio_devices():
@@ -234,7 +241,7 @@ Your task is to take my spoken transcript and transform it into clear, structure
                 messages=[
                     {
                         "role": "user", 
-                        "content": f"Please process this transcript into professional engineering documentation:\n\n{transcript}"
+                        "content": f"Please convert this casual speech into clear, actionable engineering requirements:\n\n{transcript}"
                     }
                 ]
             )
@@ -267,7 +274,7 @@ Your task is to take my spoken transcript and transform it into clear, structure
             processed = self.process_with_claude(transcript)
             
             # Display processed result
-            print(f"\n{Fore.CYAN}🔧 Engineering Documentation:{Style.RESET_ALL}")
+            print(f"\n{Fore.CYAN}🔧 Engineering Requirements:{Style.RESET_ALL}")
             print(f"{Fore.WHITE}{processed}{Style.RESET_ALL}")
             
             return transcript, processed
@@ -281,7 +288,7 @@ Your task is to take my spoken transcript and transform it into clear, structure
 @click.option('--device', '-d', type=int, help='Audio input device index (use --list-devices to see options)')
 @click.option('--list-devices', is_flag=True, help='List available audio input devices and exit')
 def main(api_key, device, list_devices):
-    """Voice to Docs - Record, transcribe, and process with Claude AI"""
+    """Voice to Engineering Requirements - Record, transcribe, and convert speech to actionable engineering tasks"""
     
     # Handle --list-devices flag
     if list_devices:
